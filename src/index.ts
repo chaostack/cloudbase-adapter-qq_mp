@@ -215,11 +215,15 @@ export class QQMpWebSocket {
 function genAdapter() {
   // 小程序无sessionStorage
   const adapter: SDKAdapterInterface = {
-    root: {},
+    root: qq,
     reqClass: QQRequest,
     wsClass: QQMpWebSocket as WebSocketContructor,
     localStorage: qqMpStorage,
-    primaryStorage: StorageType.local
+    primaryStorage: StorageType.local,
+    getAppSign(){
+      const info = qq.getAccountInfoSync();
+      return info&&info.miniProgram?info.miniProgram.appId:'';
+    }
   };
   return adapter;
 }
@@ -229,6 +233,11 @@ const adapter = {
   isMatch,
   runtime: 'qq_mp'
 };
+
+try{
+  qq.adapter = adapter;
+  qq.tcbAdapterQQMp = adapter;
+}catch(e){}
 
 export {adapter};
 export default adapter;
