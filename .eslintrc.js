@@ -24,6 +24,8 @@ module.exports = {
                 flatTernaryExpressions: true
             }
         ],
+        "@typescript-eslint/no-this-alias": 0,
+        "@typescript-eslint/prefer-optional-chain": 0,
         "guard-for-in": 0,
         "no-param-reassign": 0,
         "no-undefined": 0,

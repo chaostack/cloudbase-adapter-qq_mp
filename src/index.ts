@@ -7,7 +7,9 @@ import {
   SDKAdapterInterface,
   WebSocketContructor,
   StorageType,
-  formatUrl
+  formatUrl,
+  IRequestConfig,
+  IRequestMethod
 } from '@cloudbase/adapter-interface';
 
 // eslint-disable-next-line
@@ -74,36 +76,56 @@ function isMatch(): boolean {
 }
 
 export class QQRequest extends AbstractSDKRequest {
-  post(options: IRequestOptions) {
-    const {
-      url,
-      data,
-      headers
-    } = options;
+  // 默认不限超时
+  private readonly _timeout: number;
+  // 超时提示文案
+  private readonly _timeoutMsg: string;
+  // 超时受限请求类型，默认所有请求均受限
+  private readonly _restrictedMethods: IRequestMethod[];
+  constructor(config: IRequestConfig={}) {
+    super();
+    const { timeout, timeoutMsg, restrictedMethods } = config;
+    this._timeout = timeout || 0;
+    this._timeoutMsg = timeoutMsg || '请求超时';
+    this._restrictedMethods = restrictedMethods || ['get', 'post', 'upload', 'download'];
+  }
+  public post(options: IRequestOptions) {
+    const self = this;
     return new Promise((resolve, reject) => {
-      qq.request({
+      let timer = null;
+      const {
+        url,
+        data,
+        headers
+      } = options;
+      const task = qq.request({
         url: formatUrl('https:', url),
         data,
         method: 'POST',
         header: headers,
         success(res) {
+          self._clearTimeout(timer);
           resolve(res);
         },
         fail(err) {
+          self._clearTimeout(timer);
           reject(err);
         }
       });
+      timer = self._setTimeout('post',task);
     });
   }
-  upload(options: IUploadRequestOptions) {
+  public upload(options: IUploadRequestOptions) {
+    const self = this;
     return new Promise(resolve => {
+      let timer = null;
       const {
         url,
         file,
         data,
         headers
       } = options;
-      qq.uploadFile({
+      const task = qq.uploadFile({
         url: formatUrl('https:', url),
         // 固定字段
         name: 'file',
@@ -114,6 +136,7 @@ export class QQRequest extends AbstractSDKRequest {
         filePath: file,
         header: headers,
         success(res) {
+          self._clearTimeout(timer);
           const result = {
             statusCode: res.statusCode,
             data: res.data || {}
@@ -125,21 +148,26 @@ export class QQRequest extends AbstractSDKRequest {
           resolve(result);
         },
         fail(err) {
+          self._clearTimeout(timer);
           resolve(err);
         }
       });
+      timer = self._setTimeout('upload',task);
     });
   }
-  download(options: IRequestOptions) {
-    const {
-      url,
-      headers
-    } = options;
+  public download(options: IRequestOptions) {
+    const self = this;
     return new Promise((resolve, reject) => {
-      qq.downloadFile({
+      let timer = null;
+      const {
+        url,
+        headers
+      } = options;
+      const task = qq.downloadFile({
         url: formatUrl('https:', url),
         header: headers,
         success(res) {
+          self._clearTimeout(timer);
           if (res.statusCode === 200 && res.tempFilePath) {
             // 由于涉及权限问题，只返回临时链接不保存到设备
             resolve({
@@ -151,10 +179,28 @@ export class QQRequest extends AbstractSDKRequest {
           }
         },
         fail(err) {
+          self._clearTimeout(timer);
           reject(err);
         }
       });
+      timer = self._setTimeout('download',task);
     });
+  }
+  private _clearTimeout(timer:number|null){
+    if(timer){
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+  private _setTimeout(method:IRequestMethod,task):number|null{
+    if(!this._timeout || this._restrictedMethods.indexOf(method) === -1){
+      return null;
+    }
+    const timer = setTimeout(() => {
+      console.warn(this._timeoutMsg);
+      task.abort();
+    }, this._timeout);
+    return timer;
   }
 }
 
